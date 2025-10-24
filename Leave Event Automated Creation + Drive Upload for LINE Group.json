@@ -1,0 +1,540 @@
+{
+  "name": "Leave Event Automated Creation + Drive Upload for LINE Group",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "37848b40-e6aa-43ad-bb05-4db2d496dd3b",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "87820834-cd0c-4184-83ec-adb3a9df7c39",
+      "name": "Webhook",
+      "webhookId": "37848b40-e6aa-43ad-bb05-4db2d496dd3b"
+    },
+    {
+      "parameters": {
+        "jsCode": "// รับข้อมูลจากโหนดก่อนหน้า (Get LINE User Profile)\n// $input.all() เป็น Array ของ Object ที่มาจาก Output ของโหนดก่อนหน้า\nconst outputItems = $input.all();\nfor (const item of outputItems) {\n  const lineEvent = $('Webhook').first().json.body.events[0] // เข้าถึงข้อมูล LINE Event ต้นฉบับ\n  const messageText = lineEvent.message.text\n  const lowerCaseText = messageText.toLowerCase();\n  const userName = item.json.displayName; // ชื่อผู้ใช้จาก Get LINE User Profile\n  const userId = lineEvent.source.userId;\n\n  let eventSummary = 'แจ้งลากิจกรรม'; // ค่าเริ่มต้น\n\n  // กำหนด eventSummary ตามประเภทการลา\n  if (lowerCaseText.includes('ลาป่วย')) {\n    eventSummary = 'แจ้งลาป่วย';\n  } else if (lowerCaseText.includes('ลากิจ')) {\n    eventSummary = 'แจ้งลากิจ';\n  } else if (lowerCaseText.includes('ลาพักร้อน')) {\n    eventSummary = 'แจ้งลาพักร้อน';\n  }\n  // สามารถเพิ่มเงื่อนไขอื่นๆ ได้ที่นี่\n\n  // เพิ่มชื่อผู้ใช้ลงใน summary หากมี\n  if (userName) {\n    eventSummary = `${eventSummary} - ${userName}`;\n  }\n\n  // สร้าง descriptionText\n  let descriptionText = `ผู้ใช้: ${userName || userId} (LINE ID: ${userId}) แจ้ง: \"${messageText}\" ผ่านบอท`;\n\n  // เก็บค่าที่ได้ใน Output ของ Code Node\n  // คุณสามารถเพิ่ม field ใหม่ลงใน item.json หรือสร้าง item ใหม่\n  item.json.eventSummary = eventSummary;\n  item.json.eventDescription = descriptionText;\n  item.json.replyToken = lineEvent.replyToken; // ส่ง replyToken ต่อไป\n  item.json.userId = userId; // ส่ง userId ต่อไปด้วย\n  item.json.messageText = messageText; // ส่ง messageText ต่อไปด้วย\n\n  // Console.log สำหรับ Debugging\n  // console.log(\"Event Summary:\", item.json.eventSummary);\n  // console.log(\"Event Description:\", item.json.eventDescription);\n}\nreturn outputItems;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        624,
+        -96
+      ],
+      "id": "6977be5d-9710-49af-901a-9d03cfc0a32c",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "calendar": {
+          "__rl": true,
+          "value": "0e08e268c25a73f360848372de3d71468d7ae462869a07a16ede750c25cb8efa@group.calendar.google.com",
+          "mode": "list",
+          "cachedResultName": "วันลา OAG"
+        },
+        "start": "={{ new Date().toISOString() }}",
+        "end": "={{ new Date(new Date().setDate(new Date().getDate())).toISOString() }}",
+        "additionalFields": {
+          "description": "={{ $json.messageText }}",
+          "summary": "={{ $json.eventSummary }}"
+        }
+      },
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        896,
+        -96
+      ],
+      "id": "81912d20-5ba6-4555-9122-28d028cf855e",
+      "name": "Create Google Calendar Event",
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "OtcOKl5s234yxIh5",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://api.line.me/v2/bot/profile/{{ $json.body.events[0].source.userId }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "text",
+              "value": "={{ $json.body.events[0].message.text }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        416,
+        -96
+      ],
+      "id": "449d2152-900a-47f7-b5b3-ee3cb41fe270",
+      "name": "Get User Profile",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "Yj0YusZSsGxrKXFk",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.line.me/v2/bot/message/reply",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"replyToken\": \"{{ $('Code in JavaScript').item.json.replyToken }}\",\n  \"messages\": [\n    {\n      \"type\": \"text\",\n      \"text\":\"{{ $json.output.confirm }}\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1504,
+        -96
+      ],
+      "id": "24f3481d-55ef-424d-9937-e2a70170a85b",
+      "name": "ส่งผลการบันทึกกลับไปยัง Chat",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "Yj0YusZSsGxrKXFk",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        976,
+        176
+      ],
+      "id": "c803d6ed-8642-4de9-b69b-424d6f344983",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "5BWHny35gQcJ2Fds",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        1312,
+        208
+      ],
+      "id": "8b0fda98-a050-4525-a4fb-31108a7caa49",
+      "name": "Google Gemini Chat Model1",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "5BWHny35gQcJ2Fds",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {
+          "timezone": "Asia/Bangkok"
+        }
+      },
+      "type": "n8n-nodes-base.dateTimeTool",
+      "typeVersion": 2,
+      "position": [
+        1136,
+        176
+      ],
+      "id": "cdbb2d3d-97f4-44e5-96a1-8fd3ceebec6a",
+      "name": "Date & Time"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "==ตอบกลับยืนยันการบันทึกการลาวันที่ {{$today.setLocale('th').toFormat('d LLLL yyyy').replace('2025', '2568')}} ด้วยข้อความสั้น ๆ และสุภาพ (ลงท้ายด้วย \"ค่ะ\") โดยให้สุ่มเลือกสำนวนหรือรูปแบบการตอบ เช่น \"บันทึกการลาวันที่ ... เรียบร้อยแล้วค่ะ\", \"รับทราบการลาวันที่ ... แล้วค่ะ\", \"บันทึกข้อมูลลา ... สำเร็จค่ะ\", \"ยืนยันการลา ... เรียบร้อยค่ะ\", \"รับเรื่องการลา ... แล้วค่ะ\" ห้ามตอบยาว และต้องลงท้ายด้วย 'ค่ะ' เสมอ",
+        "hasOutputParser": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        1104,
+        -96
+      ],
+      "id": "223281d7-300d-414a-a2bd-6b034b44f2dd",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n\t\"confirm\": \"anytext\"\n}",
+        "autoFix": true
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        1248,
+        96
+      ],
+      "id": "1acf6d2c-4298-4369-8bdb-cad94e1b4034",
+      "name": "Structured Output Parser1"
+    },
+    {
+      "parameters": {
+        "name": "={{ $json.body.events[0].timestamp }}.{{ $json.body.events[0].message.id }}",
+        "driveId": {
+          "__rl": true,
+          "value": "My Drive",
+          "mode": "list",
+          "cachedResultName": "My Drive",
+          "cachedResultUrl": "https://drive.google.com/drive/my-drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "12cXAob9R9lkpCVkDb4_X-7XkN8yqJc62",
+          "mode": "list",
+          "cachedResultName": "LineUploads",
+          "cachedResultUrl": "https://drive.google.com/drive/folders/12cXAob9R9lkpCVkDb4_X-7XkN8yqJc62"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        912,
+        336
+      ],
+      "id": "5b739895-2862-4ca0-8306-36e30a875568",
+      "name": "Upload file",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "vmHB3lxL68z1evJq",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://api-data.line.me/v2/bot/message/{{ $('Webhook').item.json.body.events[0].message.id }}/content",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        624,
+        256
+      ],
+      "id": "5e152566-704d-425d-b40b-14522cf55132",
+      "name": "Get file",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "Yj0YusZSsGxrKXFk",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "141b3264-5808-4f58-a71f-d64e6fc24639",
+              "leftValue": "={{ $json.body.events[0].message.type }}",
+              "rightValue": "=text",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            },
+            {
+              "id": "4d99f514-3ae6-4f26-83e1-f6bef51dc5e4",
+              "leftValue": "={{ $json.body.events[0].message.text.toLowerCase().includes('ลา') }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        208,
+        0
+      ],
+      "id": "d8b68e31-ef26-4f72-8ebd-6d1474018707",
+      "name": "ตรวจสอบว่าเป็นวันลาหรืออัพโหลดไฟล์"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "4eebca04-0364-4963-8aab-a52a52a7cc5f",
+              "leftValue": "={{ $json.body.events[0].message.type }}",
+              "rightValue": "image",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            },
+            {
+              "id": "b071fdfe-d177-4450-b921-816eedfb71d8",
+              "leftValue": "={{ $json.body.events[0].message.type }}",
+              "rightValue": "=file",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        352,
+        240
+      ],
+      "id": "9126e73b-0454-4e0a-8d93-e19f6aa905a6",
+      "name": "ตรวจสอบว่าเป็นรูปหรือไฟล์"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.line.me/v2/bot/message/reply",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"replyToken\": \"{{ $('Webhook').item.json.body.events[0].replyToken }}\",\n  \"messages\": [\n    {\n      \"type\": \"text\",\n      \"text\":\"อัพโหลดไฟล์เรียบร้อย {{ $json.webViewLink }}\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1152,
+        336
+      ],
+      "id": "a6214331-ba40-4eb9-99d3-c21897272e4c",
+      "name": "ส่งผลการบันทึกกลับไปยังกลุ่มChat Line",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "Yj0YusZSsGxrKXFk",
+          "name": "Header Auth account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "ตรวจสอบว่าเป็นวันลาหรืออัพโหลดไฟล์",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Create Google Calendar Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get User Profile": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Google Calendar Event": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Structured Output Parser1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Date & Time": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "ส่งผลการบันทึกกลับไปยัง Chat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser1": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get file": {
+      "main": [
+        [
+          {
+            "node": "Upload file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload file": {
+      "main": [
+        [
+          {
+            "node": "ส่งผลการบันทึกกลับไปยังกลุ่มChat Line",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ตรวจสอบว่าเป็นวันลาหรืออัพโหลดไฟล์": {
+      "main": [
+        [
+          {
+            "node": "Get User Profile",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "ตรวจสอบว่าเป็นรูปหรือไฟล์",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ตรวจสอบว่าเป็นรูปหรือไฟล์": {
+      "main": [
+        [
+          {
+            "node": "Get file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "12440800-5936-48d3-922d-64712a0c49ee",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "6490cbfe23824454538b87caa3692912d2323ed48901be106241d3f552e18f88"
+  },
+  "id": "bAA4mo8NbJfengoE",
+  "tags": []
+}
