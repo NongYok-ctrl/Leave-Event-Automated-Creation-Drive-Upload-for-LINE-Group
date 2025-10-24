@@ -1,6 +1,6 @@
-# ระบบสร้างกิจกรรมวันลาอัตโนมัติและอัปโหลดไฟล์สำหรับ LINE Group
+# ระบบสร้างกิจกรรมวันลาอัตโนมัติและอัปโหลดไฟล์สำหรับ LINE
 
-ไฟล์นี้คือ n8n Workflow ที่ทำหน้าที่เป็น Webhook สำหรับ LINE Group หรือ Chatbot โดยเฉพาะ เพื่อดำเนินการ 2 ฟังก์ชันหลักคือ **1) บันทึกกิจกรรมวันลาลง Google Calendar อัตโนมัติ** และ **2) อัปโหลดไฟล์หรือรูปภาพไปยัง Google Drive อัตโนมัติ**
+ไฟล์นี้คือ n8n Workflow ที่ทำหน้าที่เป็น Webhook สำหรับ LINE หรือ Chatbot โดยเฉพาะ เพื่อดำเนินการ 2 ฟังก์ชันหลักคือ **1) บันทึกกิจกรรมวันลาลง Google Calendar อัตโนมัติ** และ **2) อัปโหลดไฟล์หรือรูปภาพไปยัง Google Drive อัตโนมัติ**
 
 ## วัตถุประสงค์และคุณสมบัติหลัก (Objectives & Features)
 
@@ -37,7 +37,7 @@
 
 ## วิธีการใช้งาน (How to Use/Setup)
 
-1.  **นำเข้าไฟล์:** นำเข้าไฟล์ `Leave Event Automated Creation + Drive Upload for LINE Group.json` ไปยัง n8n instance ของคุณ.
+1.  **นำเข้าไฟล์:** นำเข้าไฟล์ `Leave Event Automated Creation + Drive Upload for LINE .json` ไปยัง n8n instance ของคุณ.
 2.  **ตั้งค่า Credential:**
     * **HTTP Header Auth (LINE):** เชื่อมต่อ Credential สำหรับ LINE (เพื่อใช้ในการดึงโปรไฟล์, ดาวน์โหลดไฟล์, และตอบกลับ).
     * **Google Calendar OAuth2 API:** เชื่อมต่อ Credential สำหรับ Google Calendar.
